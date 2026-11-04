@@ -9,5 +9,4 @@ backups/
 # Secrets: never commit a real .env (only .env.example, which holds placeholders)
 .env
 .env.*
-.env.example
-.env.example.*
+!.env.example
