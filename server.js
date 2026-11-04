@@ -138,3 +138,13 @@ if (require.main === module) {
   process.on('SIGTERM', () => stop('SIGTERM')); process.on('SIGINT', () => stop('SIGINT'));
   process.on('unhandledRejection', e => log('error', 'unhandled rejection', { err: String(e?.message || e) }));
 }
+// Export the app for Vercel serverless functions
+module.exports = app;
+
+// Only listen locally if not running on Vercel
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
