@@ -1,0 +1,28 @@
+{
+  "name": "eagle-exam-portal",
+  "version": "3.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "migrate": "node --env-file-if-exists=.env scripts/migrate.js",
+    "migrate:from-sqlite": "node --env-file-if-exists=.env scripts/migrate-from-sqlite.js",
+    "test": "node --require ./tests/helpers/setup-db.js --test \"tests/*.test.js\"",
+    "test:e2e": "node --require ./tests/helpers/setup-db.js --test --test-concurrency=1 \"tests/e2e/*.e2e.js\"",
+    "seed": "node --env-file-if-exists=.env scripts/seed-demo.js",
+    "bench": "node --require ./tests/helpers/setup-db.js scripts/bench.js",
+    "backup": "node --env-file-if-exists=.env scripts/backup.js",
+    "verify-backup": "node scripts/verify-backup.js",
+    "restore-test": "node --env-file-if-exists=.env scripts/restore-test.js",
+    "email:check": "node --env-file-if-exists=.env scripts/email-check.js"
+  },
+  "dependencies": {
+    "compression": "^1.8.2",
+    "express": "^4.19.2",
+    "katex": "^0.19.0",
+    "nodemailer": "^10.3.1",
+    "pg": "8.23.1"
+  }
+}

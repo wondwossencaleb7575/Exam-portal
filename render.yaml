@@ -1,0 +1,26 @@
+# Render Blueprint for the Eagle Labs Exam Portal (v3: data lives in Supabase, so no disk is needed).
+# A PAID instance is still recommended: free web services block outbound SMTP ports 25/465/587, so the Gmail sign-in codes cannot be sent from them,
+# and they sleep when idle (a sleeping server is a bad surprise in the middle of an exam).
+# Secrets marked `sync: false` are asked for in the Render dashboard; they are never stored in this file or in Git.
+# DATABASE_URL is the limited eagle_app role through the Supabase SESSION POOLER (docs/SUPABASE.md). Do NOT add MIGRATION_DATABASE_URL here.
+services:
+  - type: web
+    name: eagle-exam-portal
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    numInstances: 1            # the login-attempt and general rate limiters are per process; keep one instance (docs/SUPABASE.md, "Scaling")
+    envVars:
+      - { key: NODE_VERSION, value: "22.13.0" }
+      - { key: NODE_ENV, value: production }
+      - { key: TRUST_PROXY, value: "1" }
+      - { key: DATABASE_URL, sync: false }       # postgresql://eagle_app.<project-ref>:<password>@<pooler-host>:5432/postgres
+      - { key: OTP_LOGIN_MODE, value: staff }
+      - { key: OTP_SECRET, generateValue: true }
+      - { key: ADMIN_EMAIL, sync: false }       # first run only: must be a REAL mailbox you can read (it receives your sign-in codes)
+      - { key: ADMIN_PASSWORD, sync: false }
+      - { key: GMAIL_USER, sync: false }
+      - { key: GMAIL_APP_PASSWORD, sync: false }
+      - { key: APP_BASE_URL, sync: false }
