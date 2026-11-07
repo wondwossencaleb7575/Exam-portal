@@ -125,7 +125,7 @@ R(/^\/$/, async () => {
   if (state.user === null) { try { state.user = await meUser(); } catch { state.user = false; } }
   if (state.user && !state.user.must_change) return (location.hash = homeFor(state.user));
   render(`<div class="wc"><header class="wh"><img src="/img/emblem.png" alt="Eagle Labs" width="64" height="64"></header>
-  <div class="wg"><div class="wt"><div class="wbn"><h1 id="wh">Math Exam Portal</h1></div>
+  <div class="wg"><div class="wt"><div class="wbn"><h1 id="wh">Eagle Labs Exam Portal For HUMS</h1></div>
   <p class="wl2">Take your exams securely from any device. Sign in with the account your teacher gave you, open your assigned exam, and start when you are ready.</p>
   <div class="wa"><a class="wb p" href="#/login">Sign in</a></div>
   <ul class="wk"><li>The exam timer runs on the server, so refreshing the page never adds time.</li><li>Answers are saved automatically and marked on the server. Answer keys never reach your browser.</li><li>Results appear only when your teacher releases them.</li></ul></div>
