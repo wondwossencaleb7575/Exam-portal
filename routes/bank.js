@@ -4,6 +4,8 @@ const A = require('../lib/auth');
 const { wrap, fail, notFound, idOf, paging } = require('../lib/http');
 const { cleanQuestion } = require('../lib/validate');
 const { audit } = require('../lib/audit');
+const CSV = require('../lib/csv');
+const QI = require('../lib/questionImport');
 const r = express.Router();
 r.use(A.requireAuth({ roles: ['teacher'] }));
 const parse = q => ({ ...q, options: JSON.parse(q.options), key: JSON.parse(q.key), settings: JSON.parse(q.settings) });
@@ -26,6 +28,11 @@ r.get('/', wrap(async (req, res) => {
     items: (await db.prepare(`SELECT * FROM questions WHERE ${w} ORDER BY updated DESC LIMIT ? OFFSET ?`).all(...p, size, offset)).map(parse),
     topics: (await db.prepare("SELECT DISTINCT topic FROM questions WHERE owner_id=? AND archived=0 AND topic!='' ORDER BY topic").all(req.user.id)).map(x => x.topic) });
 }));
+// ---- CSV import (teachers, own bank only). These routes MUST stay above '/:id'. Ownership comes from the session, never from the file or the request body. ----
+r.get('/import/template.csv', wrap(async (req, res) => res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="questions-template.csv"' }).send(await QI.template())));
+const csvText = req => { if (typeof req.body.csv !== 'string') fail('Choose a CSV file first.'); return req.body.csv; };
+r.post('/import/preview', wrap(async (req, res) => res.json(await CSV.guard(async () => await QI.plan(req.user, csvText(req))))));
+r.post('/import/commit', wrap(async (req, res) => res.json(await CSV.guard(async () => await QI.run(req.user, csvText(req), req.body.digest)))));
 r.get('/:id', wrap(async (req, res) => res.json(parse(await mine(req)))));
 r.post('/', wrap(async (req, res) => { const id = await save(null, req, await cleanQuestion(req.body, { ownerId: req.user.id })); await audit(req.user, 'question.create', 'question', id); res.json({ id }); }));
 r.put('/:id', wrap(async (req, res) => { const q = await mine(req); await save(q.id, req, await cleanQuestion(req.body, { ownerId: req.user.id })); await audit(req.user, 'question.update', 'question', q.id); res.json({ ok: true }); }));

@@ -70,3 +70,20 @@ Notes
 * Teachers can enroll only students who share a class with them; suspended accounts cannot be enrolled; administrators do not manage exams (existing rule).
 * *Duplicate exam* copies the direct enrollments along with the class assignments.
 * All changes are audited: `exam.enroll` (count, first 60 ids, method, exam status) and `exam.unenroll`.
+
+## Question import (Question bank → *Import Questions (CSV)*)
+Teachers only, into their **own** bank. Flow: download the template (`GET /api/questions/import/template.csv`) → upload → server-side preview (`POST /api/questions/import/preview`, saves nothing) → confirm (`POST /api/questions/import/commit`). Every row is checked by the same `cleanQuestion()` the question editor uses.
+
+| Column | Meaning |
+|---|---|
+| `type` (required) | `mcq`, `tf`, `short`, `numeric`, `written` |
+| `question` (required) | Question text (may contain commas, quotes, line breaks, `$math$`; max 5000 characters) |
+| `subject` | An **existing** subject name (case-insensitive). Blank = the portal's default subject (same as manual creation). Imports never create subjects |
+| `topic`, `difficulty`, `marks`, `explanation` | Topic (≤60); `easy`/`medium`/`hard` (blank = medium); marks > 0 and ≤ 100 (blank = 1); explanation (≤3000) |
+| `option_a` … `option_h` | MCQ options, filled in order from `option_a` (2 to 8) |
+| `correct_answer` | MCQ: option letter, `A|C` for several (or the exact option text). TF: `true`/`false`. Short: accepted answer(s), separated by `|`. Numeric: the number. Written: optional marking guide (blank = you mark by hand) |
+| `multiple_correct`, `scoring` | MCQ: `yes`/`no` (inferred when several answers are listed); `all` or `partial` |
+| `accepted_answers`, `case_sensitive`, `review` | Short: extra accepted answers (`|`-separated); `yes`/`no`; teacher-review flag (`yes`/`no`, default yes) |
+| `tolerance`, `tolerance_type`, `decimals`, `unit` | Numeric: ≥ 0; `absolute` or `relative`/`percent`; 0–10; unit (≤20) |
+
+Rules: columns may be in any order and optional columns may be missing; a row with an error is **never** imported and is listed with its CSV line and column; exact duplicates (same type, question text and options), inside the file or already in your bank, are skipped and reported; rows that start with `SAMPLE:` (the template's examples) are rejected; the whole commit is one database transaction (all valid rows or none); limits: 1,000 rows (`CSV_MAX_ROWS`) and 500 KB per question file. Ambiguous numbers such as `1,000` are rejected (write `1000`). Images cannot be imported (add them in the editor). Excel: save as **CSV UTF-8 (Comma delimited)**; plain “CSV (Comma delimited)” files (Windows-1252) are decoded and flagged, but non-Latin text (e.g. Amharic) cannot survive that format. Audited as `question.import`.

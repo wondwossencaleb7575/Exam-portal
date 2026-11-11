@@ -180,7 +180,7 @@ R(/^\/t\/exam\/(\d+)\/edit$/, async id => {
 R(/^\/t\/bank$/, async () => {
   loading(); const f = { q: '', topic: '', difficulty: '', type: '', page: 1 }; page('<div id="x"></div>', { title: 'Question bank' });
   const load = async () => { const qs = new URLSearchParams({ ...f, size: 15 }); for (const [k, v] of [...qs]) if (!v) qs.delete(k); const r = await get('/api/questions?' + qs); if (!$('#x')) return;
-    $('#x').innerHTML = `<div class="row"><h1>Question bank</h1><a class="btn" href="#/t/bank/new">+ New question</a></div><div class="card"><div class="two"><div><label class="f" for="bq">Search</label><input id="bq" value="${esc(f.q)}"></div>
+    $('#x').innerHTML = `<div class="row"><h1>Question bank</h1><div class="gap"><button class="sec" data-qimp="1">Import Questions (CSV)</button><a class="btn" href="#/t/bank/new">+ New question</a></div></div><div class="card"><div class="two"><div><label class="f" for="bq">Search</label><input id="bq" value="${esc(f.q)}"></div>
       <div><label class="f" for="bt">Topic</label><select id="bt"><option value="">All</option>${r.topics.map(t => `<option ${t === f.topic ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
       <div><label class="f" for="bd">Difficulty</label><select id="bd"><option value="">All</option>${['easy', 'medium', 'hard'].map(t => `<option ${t === f.difficulty ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
       <div><label class="f" for="by">Type</label><select id="by"><option value="">All</option>${Object.entries(TYPE_NAMES).map(([k, n]) => `<option value="${k}" ${k === f.type ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div></div>
@@ -188,7 +188,7 @@ R(/^\/t\/bank$/, async () => {
     math($('#x')); const q = $('#bq'); q.oninput = debounce(() => { f.q = q.value; f.page = 1; load().then(() => { const n = $('#bq'); n.focus(); n.setSelectionRange(99, 99); }); }, 300);
     for (const [s, k] of [['#bt', 'topic'], ['#bd', 'difficulty'], ['#by', 'type']]) $(s).onchange = e => { f[k] = e.target.value; f.page = 1; load(); }; };
   $('#x').onclick = async e => { const b = e.target.closest('button,[data-pg]'); if (!b) return; try {
-    if (b.dataset.pg) { f.page = +b.dataset.pg; load(); } else if (b.dataset.dup) { await post(`/api/questions/${b.dataset.dup}/duplicate`); toast('Duplicated'); load(); }
+    if (b.dataset.pg) { f.page = +b.dataset.pg; load(); } else if (b.dataset.qimp) openQuestionImport({ onDone: () => { f.page = 1; load(); } }); else if (b.dataset.dup) { await post(`/api/questions/${b.dataset.dup}/duplicate`); toast('Duplicated'); load(); }
     else if (b.dataset.arc && await confirmDlg('Archive this question?', 'It leaves the bank. Exams that already use it are not affected.', { ok: 'Archive' })) { await del('/api/questions/' + b.dataset.arc); load(); } } catch (er) { toast(er.message, 'err'); } };
   load();
 }, T_);
