@@ -10,6 +10,7 @@ const SET = require('../lib/settings');
 const CSV = require('../lib/csv');
 const OTP = require('../lib/otp');
 const mailer = require('../lib/mailer');
+const LIFE = require('../lib/userLifecycle');
 const { testEmail } = require('../lib/emailTemplates');
 const { HttpError } = require('../lib/http');
 const r = express.Router();
@@ -23,7 +24,7 @@ async function createUser(actor, { email, name, role, student_number }) {
   return { id, email, name, role, temp_password: temp };
 }
 async function resetPassword(actor, userId) {
-  const u = await db.prepare('SELECT id,email FROM users WHERE id=?').get(userId); if (!u) notFound();
+  const u = await db.prepare('SELECT id,email,status FROM users WHERE id=?').get(userId); if (!u || u.status === 'deleted') notFound();
   const temp = A.tempPassword();
   await db.prepare('UPDATE users SET pw_hash=?,must_change=1 WHERE id=?').run(await A.hashPw(temp), u.id);
   await db.prepare('DELETE FROM sessions WHERE user_id=?').run(u.id);
@@ -32,15 +33,15 @@ async function resetPassword(actor, userId) {
   return temp;
 }
 r.get('/users', wrap(async (req, res) => {
-  const { page, size, offset } = paging(req), q = `%${String(req.query.q || '').trim()}%`, role = ['admin', 'teacher', 'student'].includes(req.query.role) ? req.query.role : null;
-  const w = 'WHERE (name ILIKE ? OR email ILIKE ? OR student_number ILIKE ?) AND (?::text IS NULL OR role=?)', p = [q, q, q, role, role];
+  const { page, size, offset } = paging(req), q = `%${String(req.query.q || '').trim()}%`, role = ['admin', 'teacher', 'student'].includes(req.query.role) ? req.query.role : null, status = ['active', 'suspended'].includes(req.query.status) ? req.query.status : null;
+  const w = "WHERE status<>'deleted' AND (name ILIKE ? OR email ILIKE ? OR student_number ILIKE ?) AND (?::text IS NULL OR role=?) AND (?::text IS NULL OR status=?)", p = [q, q, q, role, role, status, status];
   const total = (await db.prepare(`SELECT COUNT(*) n FROM users ${w}`).get(...p)).n;
   res.json({ total, page, size, items: (await db.prepare(`SELECT id,email,name,role,student_number,status,created,last_login,email_verified_at,otp_exempt FROM users ${w} ORDER BY role,name LIMIT ? OFFSET ?`).all(...p, size, offset)).map(u => ({ ...u, otp_required: OTP.requiredFor(u) })), otp_mode: OTP.config().mode });
 }));
 // Administrative user list for download: no password hashes, tokens or temporary credentials.
 r.get('/users/export.csv', wrap(async (req, res) => {
   const role = ['admin', 'teacher', 'student'].includes(req.query.role) ? req.query.role : null, q = `%${String(req.query.q || '').trim()}%`, iso = ms => ms ? new Date(ms).toISOString() : '';
-  const rows = await db.prepare("SELECT id,name,email,role,student_number,status,created,last_login FROM users WHERE (name ILIKE ? OR email ILIKE ? OR COALESCE(student_number,'') ILIKE ?) AND (?::text IS NULL OR role=?) ORDER BY role,lower(name),id").all(q, q, q, role, role);
+  const rows = await db.prepare("SELECT id,name,email,role,student_number,status,created,last_login FROM users WHERE status<>'deleted' AND (name ILIKE ? OR email ILIKE ? OR COALESCE(student_number,'') ILIKE ?) AND (?::text IS NULL OR role=?) ORDER BY role,lower(name),id").all(q, q, q, role, role);
   await audit(req.user, 'users.export', 'user', null, { role });
   await CSV.sendCsv(res, 'users', ['user_id', 'full_name', 'email', 'role', 'student_number', 'account_status', 'created_at', 'last_login'], (function* () { for (const u of rows) yield [u.id, u.name, u.email, u.role, u.student_number || '', u.status, iso(u.created), iso(u.last_login)]; })());
 }));
@@ -49,11 +50,11 @@ r.post('/users', wrap(async (req, res) => {
   res.json(await createUser(req.user, req.body));
 }));
 r.patch('/users/:id', wrap(async (req, res) => {
-  const id = idOf(req.params.id), u = await db.prepare('SELECT * FROM users WHERE id=?').get(id); if (!u) notFound();
+  const id = idOf(req.params.id), u = await db.prepare('SELECT * FROM users WHERE id=?').get(id); if (!u || u.status === 'deleted') notFound(); // a deleted account is final
   if (req.body.status) {
     if (!['active', 'suspended'].includes(req.body.status)) fail('Invalid status.');
     if (id === req.user.id) fail('You cannot suspend your own account.');
-    await db.prepare('UPDATE users SET status=? WHERE id=?').run(req.body.status, id);
+    try { await db.prepare('UPDATE users SET status=? WHERE id=?').run(req.body.status, id); } catch (e) { if (e?.code === '23001') throw new HttpError(409, LIFE.LAST_ADMIN); throw e; } // database guard: never the last active administrator
     if (req.body.status === 'suspended') { await db.prepare('DELETE FROM sessions WHERE user_id=?').run(id); await OTP.invalidateFor(id); }
     await audit(req.user, 'user.status', 'user', id, { from: u.status, to: req.body.status });
   }
@@ -78,6 +79,10 @@ r.patch('/users/:id', wrap(async (req, res) => {
   if (Object.keys(changes).length) await audit(req.user, 'user.update', 'user', id, { changes });
   res.json({ ok: true });
 }));
+// ---- user lifecycle (see lib/userLifecycle.js). Same admin-only router guard as everything here; every rule is enforced in the engine. ----
+r.post('/users/:id/deactivate', wrap(async (req, res) => res.json(await LIFE.deactivate(req.user, idOf(req.params.id), req.body.reason))));
+r.post('/users/:id/restore', wrap(async (req, res) => res.json(await LIFE.restore(req.user, idOf(req.params.id), req.body.reason))));
+r.delete('/users/:id', wrap(async (req, res) => res.json(await LIFE.remove(req.user, idOf(req.params.id), req.body || {}))));
 r.post('/users/:id/reset-password', wrap(async (req, res) => res.json({ temp_password: await resetPassword(req.user, idOf(req.params.id)) })));
 // ---- email delivery diagnostics (administrator only). Never returns the app password, only whether one is set. ----
 let lastEmailCheck = null;

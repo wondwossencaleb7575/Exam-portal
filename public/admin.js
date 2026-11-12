@@ -1,22 +1,54 @@
 /* Administrator: users, audit log, system */
 const A_ = ['admin'];
 R(/^\/a$/, () => (location.hash = '#/a/users'), A_);
+// Account lifecycle dialogs (deactivate / restore / permanently delete). The server enforces every rule; this only explains and confirms.
+const LIFE_ROLE = { admin: 'Administrator', teacher: 'Teacher', student: 'Student' };
+function lifecycleDlg(kind, u, done) {
+  const C = {
+    deactivate: { title: 'Deactivate this account?', btn: 'Deactivate', style: 'background:#b45309', ok: 'Account deactivated', url: `/api/admin/users/${u.id}/deactivate`,
+      body: '<div class="alert warn"><b>Reversible.</b> The account becomes <b>inactive</b>: the person is signed out everywhere and cannot sign in or use the portal. Their exams, grades, classes and content are all kept. You can restore the account at any time.</div>' },
+    restore: { title: 'Restore this account?', btn: 'Restore', style: 'background:#15803d', ok: 'Account restored', url: `/api/admin/users/${u.id}/restore`,
+      body: '<div class="alert ok">The same account (same ID, same history and classes) becomes active again and the person can sign in with their existing password.</div>' },
+    delete: { title: 'Permanently delete this account?', btn: 'Permanently delete', cls: 'dng', ok: 'Account permanently deleted', url: `/api/admin/users/${u.id}`,
+      body: `<div class="alert err" role="alert"><b>This cannot be undone.</b></div>
+        <p><b>Removed:</b> name, email address, student number, password, sign-in sessions and codes, and class and roster links. The person can never sign in again and disappears from every user list.</p>
+        <p><b>Kept, anonymised as “Deleted user”:</b> exam attempts, answers, grades and reports (so results stay accurate), plus any exams, questions and classes they created, which are archived and never handed to anyone else. The audit log keeps a minimal record of this deletion.</p>
+        <p class="mu">If you only want to stop the person signing in, use <b>Deactivate</b> instead.</p>` }
+  }[kind];
+  const d = modal(`<h2>${C.title}</h2>
+    <div class="card" style="margin:8px 0"><b>${esc(u.name)}</b><div>${esc(u.email)}</div><div class="mu">${LIFE_ROLE[u.role] || esc(u.role)} · ID ${u.id}</div></div>${C.body}
+    <label class="f" for="lr">Reason (optional; kept in the audit log)</label><input id="lr" maxlength="300" autocomplete="off">
+    ${kind === 'delete' ? '<label class="f" for="lc">Type <b>DELETE</b> to confirm</label><input id="lc" autocomplete="off" spellcheck="false" autocapitalize="characters">' : ''}
+    <div id="le" aria-live="polite"></div>
+    <div class="row l" style="margin-top:12px"><button id="lgo" class="${C.cls || ''}" style="${C.style || ''}" ${kind === 'delete' ? 'disabled' : ''}>${C.btn}</button><button type="button" class="sec" id="lx">Cancel</button></div>`);
+  const go = $('#lgo', d), typed = $('#lc', d); let busy = false;
+  if (typed) typed.oninput = () => { go.disabled = busy || typed.value !== 'DELETE'; };
+  $('#lx', d).onclick = () => d.close();
+  go.onclick = async () => {
+    if (busy) return; busy = true; go.disabled = true; go.textContent = 'Working…'; $('#le', d).innerHTML = '';
+    try {
+      const reason = $('#lr', d).value;
+      await (kind === 'delete' ? api(C.url, { method: 'DELETE', body: { confirm: typed.value, reason } }) : post(C.url, { reason }));
+      d.close(); toast(C.ok); done();
+    } catch (er) { $('#le', d).innerHTML = `<div class="alert err" role="alert">${esc(er.message)}</div>`; busy = false; go.textContent = C.btn; go.disabled = kind === 'delete' && typed.value !== 'DELETE'; }
+  };
+}
 R(/^\/a\/users$/, async () => {
-  loading(); const f = { q: '', role: '', page: 1 }; page('<div id="x"></div>', { title: 'Users' });
+  loading(); const f = { q: '', role: '', status: '', page: 1 }; let rows = []; page('<div id="x"></div>', { title: 'Users' });
   const load = async () => {
-    const r = await get(`/api/admin/users?q=${encodeURIComponent(f.q)}&role=${f.role}&page=${f.page}&size=25`); if (!$('#x')) return;
-    $('#x').innerHTML = `<div class="row"><h1>Users</h1><button id="nu">+ New account</button></div><div class="card"><div class="gap"><input id="uq" placeholder="Search name, email, student number" value="${esc(f.q)}" style="max-width:320px" aria-label="Search users"><select id="ur" style="max-width:180px" aria-label="Role">${['', 'admin', 'teacher', 'student'].map(x => `<option value="${x}" ${f.role === x ? 'selected' : ''}>${x || 'All roles'}</option>`).join('')}</select></div>
-      <div class="tw"><table><tr><th>Name</th><th>Email</th><th>Role</th><th>Last sign-in</th><th>Status</th><th></th></tr>${r.items.map(u => `<tr><td>${esc(u.name)}<div class="mu">${esc(u.student_number || '')}</div></td><td>${esc(u.email)}${r.otp_mode !== 'off' ? `<span class="vf ${u.email_verified_at ? 'ok' : ''}">${u.otp_required ? (u.email_verified_at ? '✓ Email verified ' + fd(u.email_verified_at) : 'Email not verified yet') : (u.otp_exempt ? 'Password only (exempt)' : 'Password only')}</span>` : ''}</td><td>${u.role}</td><td>${u.last_login ? fd(u.last_login) : 'never'}</td><td>${badge(u.status === 'active' ? 'active' : 'closed', u.status)}</td>
-      <td class="n"><button class="sec sm" data-rp="${u.id}">Reset password</button> ${u.role === 'student' && r.otp_mode === 'all' ? `<button class="sec sm" data-ex="${u.id}" data-to="${u.otp_exempt ? 0 : 1}">${u.otp_exempt ? 'Require email code' : 'Allow password only'}</button> ` : ''}${u.id !== state.user.id ? `<button class="sec sm" data-st="${u.id}" data-to="${u.status === 'active' ? 'suspended' : 'active'}">${u.status === 'active' ? 'Suspend' : 'Reactivate'}</button>` : ''}</td></tr>`).join('')}</table></div>${pager(r.total, r.page, r.size)}</div>`;
-    const q = $('#uq'); q.oninput = debounce(() => { f.q = q.value; f.page = 1; load().then(() => { const n = $('#uq'); n.focus(); n.setSelectionRange(99, 99); }); }, 300); $('#ur').onchange = e => { f.role = e.target.value; f.page = 1; load(); };
+    const r = await get(`/api/admin/users?q=${encodeURIComponent(f.q)}&role=${f.role}&status=${f.status}&page=${f.page}&size=25`); if (!$('#x')) return; rows = r.items;
+    $('#x').innerHTML = `<div class="row"><h1>Users</h1><button id="nu">+ New account</button></div><div class="card"><div class="gap"><input id="uq" placeholder="Search name, email, student number" value="${esc(f.q)}" style="max-width:320px" aria-label="Search users"><select id="ur" style="max-width:180px" aria-label="Role">${['', 'admin', 'teacher', 'student'].map(x => `<option value="${x}" ${f.role === x ? 'selected' : ''}>${x || 'All roles'}</option>`).join('')}</select><select id="us" style="max-width:180px" aria-label="Account status">${[['', 'All statuses'], ['active', 'Active'], ['suspended', 'Deactivated']].map(([v, l]) => `<option value="${v}" ${f.status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="tw"><table><tr><th>Name</th><th>Email</th><th>ID</th><th>Role</th><th>Registered</th><th>Last sign-in</th><th>Status</th><th></th></tr>${r.items.length ? r.items.map(u => `<tr><td>${esc(u.name)}<div class="mu">${esc(u.student_number || '')}</div></td><td>${esc(u.email)}${r.otp_mode !== 'off' ? `<span class="vf ${u.email_verified_at ? 'ok' : ''}">${u.otp_required ? (u.email_verified_at ? '✓ Email verified ' + fd(u.email_verified_at) : 'Email not verified yet') : (u.otp_exempt ? 'Password only (exempt)' : 'Password only')}</span>` : ''}</td><td>${u.id}</td><td>${u.role}</td><td>${u.created ? fd(u.created) : '–'}</td><td>${u.last_login ? fd(u.last_login) : 'never'}</td><td>${badge(u.status === 'active' ? 'active' : 'closed', u.status === 'active' ? 'Active' : 'Deactivated')}</td>
+      <td class="n"><button class="sec sm" data-rp="${u.id}">Reset password</button> ${u.role === 'student' && r.otp_mode === 'all' ? `<button class="sec sm" data-ex="${u.id}" data-to="${u.otp_exempt ? 0 : 1}">${u.otp_exempt ? 'Require email code' : 'Allow password only'}</button> ` : ''}${u.id === state.user.id ? '<span class="mu">(you)</span>' : `${u.status === 'active' ? `<button class="sm" style="background:#b45309" data-life="deactivate" data-uid="${u.id}">Deactivate</button>` : `<button class="sm" style="background:#15803d" data-life="restore" data-uid="${u.id}">Restore</button>`} <button class="sm dng" data-life="delete" data-uid="${u.id}">Delete permanently</button>`}</td></tr>`).join('') : '<tr><td colspan="8" class="mu">No users match these filters.</td></tr>'}</table></div>${pager(r.total, r.page, r.size)}</div>`;
+    const q = $('#uq'); q.oninput = debounce(() => { f.q = q.value; f.page = 1; load().then(() => { const n = $('#uq'); n.focus(); n.setSelectionRange(99, 99); }); }, 300); $('#ur').onchange = e => { f.role = e.target.value; f.page = 1; load(); }; $('#us').onchange = e => { f.status = e.target.value; f.page = 1; load(); };
   };
   const tempDlg = (who, pw) => modal(`<h2>Temporary password for ${esc(who)}</h2><p class="pw">${esc(pw)}</p><p class="mu">Shown only once. They must choose their own password at first sign-in.</p><form method="dialog"><button>Close</button></form>`);
   $('#x').onclick = async e => { const b = e.target.closest('button,[data-pg]'); if (!b) return; try {
     if (b.dataset.pg) { f.page = +b.dataset.pg; return load(); }
+    if (b.dataset.life) { const u = rows.find(x => x.id === +b.dataset.uid); if (u) lifecycleDlg(b.dataset.life, u, load); return; }
     if (b.id === 'nu') { let made; await formDlg('New account', `<label class="f">Role</label><select name="role"><option value="teacher">Teacher</option><option value="student">Student</option><option value="admin">Administrator</option></select><label class="f">Full name</label><input name="name" required maxlength="80"><label class="f">Email</label><input name="email" type="email" required><label class="f">Student number (optional)</label><input name="student_number" maxlength="30">`, async v => { made = await post('/api/admin/users', v); }, { ok: 'Create' }); if (made) { tempDlg(made.email, made.temp_password); load(); } }
     if (b.dataset.rp && await confirmDlg('Reset password?', 'A new temporary password is generated and the user is signed out everywhere.', { ok: 'Reset' })) { const r = await post(`/api/admin/users/${b.dataset.rp}/reset-password`); tempDlg('this user', r.temp_password); }
     if (b.dataset.ex && await confirmDlg(b.dataset.to === '1' ? 'Allow password-only sign-in?' : 'Require an email code?', b.dataset.to === '1' ? 'This student will sign in with their password only, without an emailed code. Use this for students who do not have a working email address.' : 'This student must enter a code sent to their email address each time they sign in. Check that the address on the account is real first.', { ok: 'Confirm' })) { await patch('/api/admin/users/' + b.dataset.ex, { otp_exempt: b.dataset.to === '1' }); load(); }
-    if (b.dataset.st && await confirmDlg(b.dataset.to === 'suspended' ? 'Suspend account?' : 'Reactivate account?', b.dataset.to === 'suspended' ? 'They are signed out and cannot sign in until reactivated. Their records are kept.' : 'They can sign in again.', { ok: 'Confirm', danger: b.dataset.to === 'suspended' })) { await patch('/api/admin/users/' + b.dataset.st, { status: b.dataset.to }); load(); }
   } catch (er) { toast(er.message, 'err'); } };
   load();
 }, A_);
