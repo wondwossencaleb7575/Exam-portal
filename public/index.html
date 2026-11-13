@@ -3,11 +3,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eagle Labs Exam Portal</title>
 <link rel="icon" href="/img/emblem.png">
-<link rel="stylesheet" href="/katex/katex.min.css"><link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/katex/katex.min.css"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/loader.css">
+<link rel="preload" as="image" href="/img/eagle/eagle-body.webp" type="image/webp"><link rel="preload" as="image" href="/img/eagle/eagle-wingA.webp" type="image/webp"><link rel="preload" as="image" href="/img/eagle/eagle-wingB.webp" type="image/webp">
+<noscript><style>#eagle-loader{display:none}</style></noscript>
 <script src="/katex/katex.min.js"></script><script src="/katex/contrib/auto-render.min.js"></script>
 </head><body>
 <a class="skip" href="#main">Skip to content</a>
 <div id="root"></div><div id="toasts" role="status" aria-live="polite"></div><div id="live" class="vh" role="status" aria-live="assertive"></div>
+<div id="eagle-loader" class="el" role="status" aria-live="polite" aria-busy="true" data-state="loading">
+<div class="el-sky" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="el-stage" aria-hidden="true"><div class="el-glow"></div><div class="el-flight"><div class="el-eagle">
+<img class="el-wb" src="/img/eagle/eagle-wingB.webp" alt="" width="467" height="556" decoding="async" fetchpriority="high">
+<img class="el-bd" src="/img/eagle/eagle-body.webp" alt="" width="467" height="556" decoding="async" fetchpriority="high">
+<img class="el-wa" src="/img/eagle/eagle-wingA.webp" alt="" width="467" height="556" decoding="async" fetchpriority="high">
+</div></div><div class="el-shadow"></div></div>
+<p class="el-brand"><span class="el-name">EAGLE LABS</span><span class="el-prod">EXAM PORTAL</span></p>
+<div class="el-track" aria-hidden="true"><i></i></div>
+<p class="el-msg">Preparing your examination environment...</p>
+<div class="el-err"><p class="el-etxt" role="alert"></p><div class="el-btns"><button type="button" class="el-btn p el-retry">Try again</button><button type="button" class="el-btn el-dismiss" hidden>Close</button></div></div>
+</div>
+<script src="/loader.js"></script>
 <div class="ft">Made by Eagle Labs and Tch. Getamesay</div>
 <script src="/tz.js"></script><script src="/core.js"></script><script src="/otp.js"></script><script src="/student.js"></script><script src="/teacher.js"></script><script src="/students.js"></script><script src="/questionImport.js"></script><script src="/analytics.js"></script><script src="/admin.js"></script>
 </body></html>

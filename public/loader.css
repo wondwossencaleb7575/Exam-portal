@@ -1,0 +1,81 @@
+/* Eagle Labs Exam Portal: flying-eagle loading experience.
+   Only transform and opacity are animated, so every frame stays on the GPU compositor.
+   The eagle is the supplied logo, cut into three layers (body, upper wing, lower wing) so the wing can really flap.
+   Every base (un-animated) state is the finished, visible state: with animations off, the logo simply shows still. */
+
+.el{--el-w:clamp(150px,34vmin,240px);--el-blue:#4f8dff;--el-ice:#cfe1ff;
+  position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:24px;
+  background:radial-gradient(120% 90% at 50% 40%,#12307a 0%,#0b1f4d 36%,#060d26 76%,#040918 100%);color:#fff;
+  font:500 1rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;overscroll-behavior:contain;touch-action:none;
+  animation:elIn .35s ease .12s both}   /* the .12s grace means a load that finishes at once never flashes the screen */
+.el[hidden]{display:none}
+.el.is-out{animation:elOut .45s cubic-bezier(.4,0,.2,1) forwards;pointer-events:none}
+
+/* faint wind lines drifting backwards: the only "forward motion" cue on screen */
+.el-sky{position:absolute;inset:0;pointer-events:none}
+.el-sky i{position:absolute;left:0;height:2px;border-radius:2px;opacity:.0;background:linear-gradient(90deg,transparent,rgba(130,178,255,.55),transparent);animation:elWind 3.6s linear infinite}
+.el-sky i:nth-child(1){top:36%;width:150px;animation-delay:.2s}
+.el-sky i:nth-child(2){top:49%;width:96px;animation-duration:4.4s;animation-delay:1.3s}
+.el-sky i:nth-child(3){top:60%;width:130px;animation-duration:3.9s;animation-delay:2.2s}
+
+.el-stage{position:relative;width:var(--el-w);display:grid;place-items:center}
+.el.is-out .el-stage{animation:elDepart .5s cubic-bezier(.5,0,.9,.4) forwards}
+.el-glow{position:absolute;left:50%;top:48%;width:170%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,rgba(79,141,255,.42),rgba(79,141,255,.14) 55%,rgba(79,141,255,0) 74%);animation:elGlow 1.6s ease-in-out .55s infinite}
+.el-flight{position:relative;width:100%;animation:elBob 1.6s ease-in-out .55s infinite;will-change:transform}
+.el-eagle{position:relative;width:100%;aspect-ratio:467/556;animation:elEnter .9s cubic-bezier(.16,.8,.24,1) .18s both}
+.el-eagle img{position:absolute;inset:0;width:100%;height:100%;display:block;user-select:none;-webkit-user-drag:none;pointer-events:none}
+.el-wa{transform-origin:59.3% 45.8%;animation:elFlapA 1.6s ease-in-out .55s infinite;will-change:transform}
+.el-wb{transform-origin:52% 52.7%;animation:elFlapB 1.6s ease-in-out .62s infinite;will-change:transform}   /* lags the top feathers by 70ms: the wing ripples instead of swinging like a plank */
+.el-shadow{width:52%;height:14px;margin-top:6px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.45),rgba(0,0,0,0));animation:elShadow 1.6s ease-in-out .55s infinite}
+
+.el-brand{margin:22px 0 0;text-align:center;display:grid;gap:6px;animation:elRise .8s ease .45s both}
+.el-name{font-weight:800;font-size:clamp(1.2rem,4.2vmin,1.7rem);letter-spacing:.34em;padding-left:.34em;color:#fff}
+.el-prod{font-weight:500;font-size:clamp(.72rem,2.3vmin,.86rem);letter-spacing:.52em;padding-left:.52em;color:#9dbcff}
+
+.el-track{position:relative;width:min(230px,58vw);height:3px;margin-top:26px;border-radius:3px;background:rgba(157,188,255,.18);overflow:hidden}
+.el-track i{position:absolute;top:0;left:0;height:100%;width:38%;border-radius:3px;background:linear-gradient(90deg,rgba(79,141,255,0),var(--el-blue) 45%,var(--el-ice));animation:elTrack 1.5s cubic-bezier(.65,0,.35,1) infinite}
+.el-msg{margin:14px 0 0;min-height:1.5em;max-width:30rem;text-align:center;font-size:.95rem;color:#bdd0f7}
+.el-swap{animation:elSwap .45s ease both}
+
+/* failure: stop flying, never pretend the load worked */
+.el-err{display:none;margin-top:20px;max-width:30rem;text-align:center;gap:14px;justify-items:center}
+.el[data-state=error] .el-err{display:grid}
+.el[data-state=error] .el-track,.el[data-state=error] .el-msg,.el[data-state=error] .el-sky{display:none}
+.el[data-state=error] .el-flight,.el[data-state=error] .el-wa,.el[data-state=error] .el-wb,.el[data-state=error] .el-glow,.el[data-state=error] .el-shadow{animation:none}
+.el[data-state=error] .el-glow{background:radial-gradient(closest-side,rgba(255,170,64,.26),rgba(255,170,64,.08) 55%,rgba(255,170,64,0) 74%)}
+.el[data-state=error] .el-eagle{filter:saturate(.7) brightness(.9)}
+.el-etxt{margin:0;color:#ffd9a8;font-size:1rem}
+.el-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.el-btn{font:inherit;font-weight:600;min-height:44px;padding:8px 20px;border-radius:10px;border:1px solid #7f9ddb;background:transparent;color:#fff;cursor:pointer}
+.el-btn:hover{background:rgba(255,255,255,.1)}
+.el-btn.p{background:#2563eb;border-color:#2563eb}.el-btn.p:hover{background:#1d4ed8}
+.el-btn:focus-visible{outline:3px solid #9ec1ff;outline-offset:3px}
+
+/* light loaders for ordinary page loads: no full-screen animation */
+.sk{max-width:1100px;margin:0 auto;display:grid;gap:14px;padding:6px 0}
+.sk i{display:block;border-radius:10px;background:linear-gradient(90deg,#e6eaf2 25%,#f4f6fb 37%,#e6eaf2 63%);background-size:400% 100%;animation:skShim 1.4s ease infinite}
+.sk .a{height:30px;width:min(260px,60%)}.sk .b{height:16px;width:min(520px,92%)}.sk .c{height:130px}.sk .d{height:130px;width:min(640px,100%)}
+
+@keyframes elIn{from{opacity:0}to{opacity:1}}
+@keyframes elOut{from{opacity:1}to{opacity:0}}
+@keyframes elEnter{from{opacity:0;transform:translate3d(-34px,6px,0) scale(.94)}to{opacity:1;transform:none}}
+@keyframes elDepart{to{opacity:0;transform:translate3d(46px,-30px,0) scale(1.07)}}
+@keyframes elRise{from{opacity:0;transform:translate3d(0,8px,0)}to{opacity:1;transform:none}}
+@keyframes elSwap{from{opacity:0}to{opacity:1}}
+@keyframes elBob{0%,100%{transform:translate3d(0,0,0) rotate(0)}38%{transform:translate3d(0,-7px,0) rotate(-1deg)}}
+/* down-stroke is quicker and harder than the recovery, as in real flight; rest pose = your logo exactly */
+@keyframes elFlapA{0%{transform:rotate(0);animation-timing-function:cubic-bezier(.3,0,.2,1)}38%{transform:rotate(-13deg);animation-timing-function:cubic-bezier(.4,0,.6,1)}90%{transform:rotate(2deg)}100%{transform:rotate(0)}}
+@keyframes elFlapB{0%{transform:rotate(0);animation-timing-function:cubic-bezier(.3,0,.2,1)}38%{transform:rotate(-9deg);animation-timing-function:cubic-bezier(.4,0,.6,1)}90%{transform:rotate(1.5deg)}100%{transform:rotate(0)}}
+@keyframes elGlow{0%,100%{opacity:.72;transform:translate(-50%,-50%) scale(.97)}38%{opacity:1;transform:translate(-50%,-50%) scale(1.03)}}
+@keyframes elShadow{0%,100%{opacity:.9;transform:scale(1)}38%{opacity:.55;transform:scale(.82)}}
+@keyframes elWind{0%{opacity:0;transform:translate3d(105vw,0,0)}12%{opacity:.5}85%{opacity:.35}100%{opacity:0;transform:translate3d(-30vw,0,0)}}
+@keyframes elTrack{0%{transform:translate3d(-100%,0,0)}100%{transform:translate3d(265%,0,0)}}
+@keyframes skShim{0%{background-position:100% 0}100%{background-position:0 0}}
+
+/* Reduced motion: still logo, plain fade, no wind, and a still line (a half-filled bar would look like a percentage) */
+@media (prefers-reduced-motion:reduce){
+  .el,.el *,.sk i{animation:none!important;transition:none!important}
+  .el-sky{display:none}
+  .el-track i{width:100%;opacity:.5}
+}

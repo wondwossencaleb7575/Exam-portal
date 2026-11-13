@@ -34,7 +34,7 @@ function lifecycleDlg(kind, u, done) {
   };
 }
 R(/^\/a\/users$/, async () => {
-  loading(); const f = { q: '', role: '', status: '', page: 1 }; let rows = []; page('<div id="x"></div>', { title: 'Users' });
+  loading('dash'); const f = { q: '', role: '', status: '', page: 1 }; let rows = []; page('<div id="x"></div>', { title: 'Users', hold: true });
   const load = async () => {
     const r = await get(`/api/admin/users?q=${encodeURIComponent(f.q)}&role=${f.role}&status=${f.status}&page=${f.page}&size=25`); if (!$('#x')) return; rows = r.items;
     $('#x').innerHTML = `<div class="row"><h1>Users</h1><button id="nu">+ New account</button></div><div class="card"><div class="gap"><input id="uq" placeholder="Search name, email, student number" value="${esc(f.q)}" style="max-width:320px" aria-label="Search users"><select id="ur" style="max-width:180px" aria-label="Role">${['', 'admin', 'teacher', 'student'].map(x => `<option value="${x}" ${f.role === x ? 'selected' : ''}>${x || 'All roles'}</option>`).join('')}</select><select id="us" style="max-width:180px" aria-label="Account status">${[['', 'All statuses'], ['active', 'Active'], ['suspended', 'Deactivated']].map(([v, l]) => `<option value="${v}" ${f.status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -50,7 +50,7 @@ R(/^\/a\/users$/, async () => {
     if (b.dataset.rp && await confirmDlg('Reset password?', 'A new temporary password is generated and the user is signed out everywhere.', { ok: 'Reset' })) { const r = await post(`/api/admin/users/${b.dataset.rp}/reset-password`); tempDlg('this user', r.temp_password); }
     if (b.dataset.ex && await confirmDlg(b.dataset.to === '1' ? 'Allow password-only sign-in?' : 'Require an email code?', b.dataset.to === '1' ? 'This student will sign in with their password only, without an emailed code. Use this for students who do not have a working email address.' : 'This student must enter a code sent to their email address each time they sign in. Check that the address on the account is real first.', { ok: 'Confirm' })) { await patch('/api/admin/users/' + b.dataset.ex, { otp_exempt: b.dataset.to === '1' }); load(); }
   } catch (er) { toast(er.message, 'err'); } };
-  load();
+  load().then(() => window.EagleLoader && EagleLoader.done(), e => { if (e.status !== 401 && $('#x')) errorPage(e, route); });
 }, A_);
 R(/^\/a\/audit$/, async () => {
   loading(); const f = { action: '', actor: '', page: 1 }; page('<div id="x"></div>', { title: 'Audit log' });

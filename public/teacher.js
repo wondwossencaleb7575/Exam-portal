@@ -66,7 +66,7 @@ const qBody = q => ({ type: q.type, stem: q.stem, marks: q.marks, topic: q.topic
 
 /* ---- dashboard ---- */
 R(/^\/t$/, async () => {
-  loading(); const d = await get('/api/dashboard'), c = (n, l, href) => `<div class="card"><div class="stat">${n ?? '–'}</div><div>${l}</div>${href ? `<a href="${href}">Open</a>` : ''}</div>`;
+  loading('dash'); const d = await get('/api/dashboard'), c = (n, l, href) => `<div class="card"><div class="stat">${n ?? '–'}</div><div>${l}</div>${href ? `<a href="${href}">Open</a>` : ''}</div>`;
   page(`<div class="row"><h1>Dashboard</h1><div class="gap"><a class="btn" href="#/t/exams/new">+ New exam</a><a class="btn sec" href="#/t/bank/new">+ New question</a></div></div>
     <div class="grid">${c(d.classes, 'Classes', '#/t/classes')}${c(d.students, 'Students')}${c(d.active, 'Exams open now', '#/t/exams')}${c(d.scheduled, 'Scheduled')}${c(d.draft, 'Drafts')}${c(d.in_progress, 'Students taking exams now')}${c(d.awaiting, 'Written answers awaiting marking')}${c(d.avg_pct == null ? null : d.avg_pct + '%', 'Average score (graded exams)')}</div>
     <div class="card"><h2>Upcoming and open exams</h2>${d.upcoming.map(e => `<div class="row"><a href="#/t/exam/${e.id}">${esc(e.title)}</a><span class="mu">${e.opens ? 'opens ' + fd(e.opens) : 'open'}${e.closes ? ' · closes ' + fd(e.closes) : ''}</span></div>`).join('') || '<p class="mu">Nothing scheduled.</p>'}</div>

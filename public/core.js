@@ -77,23 +77,38 @@ const debounce = (f, ms) => { let t; return (...a) => { clearTimeout(t); t = set
 
 /* ---- layout + router ---- */
 let cleanup = null; // set by views that own timers/listeners
-function render(html, { title = 'Eagle Labs Exam Portal', home = false } = {}) {
+function render(html, { title = 'Eagle Labs Exam Portal', home = false, hold = false } = {}) {
   if (cleanup) { cleanup(); cleanup = null; }
+  if (!state.user) state.dashSeen = null; // signed out: the next sign-in gets the full welcome screen again
   document.body.classList.toggle('home', home); document.title = title + ' · ' + (state.settings?.school_name || 'Eagle Labs'); $('#root').innerHTML = html; math($('#root')); scrollTo(0, 0);
   const h = $('#main h1'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+  if (!hold && window.EagleLoader) EagleLoader.done(); // the requested page is on screen: reveal it
 }
 const NAV = { teacher: [['#/t', 'Dashboard'], ['#/t/exams', 'Exams'], ['#/t/bank', 'Question bank'], ['#/t/classes', 'Classes'], ['#/t/students', 'Students'], ['#/t/analytics', 'Analytics']], admin: [['#/a/users', 'Users'], ['#/a/students', 'Students'], ['#/a/classes', 'Classes'], ['#/a/audit', 'Audit log'], ['#/a/settings', 'Settings'], ['#/a/system', 'System']], student: [['#/s', 'My exams']] };
-function page(inner, { title, narrow = false } = {}) {
+function page(inner, { title, narrow = false, hold = false } = {}) {
   const u = state.user, here = location.hash;
   render(`<header class="top"><a class="brand" href="${NAV[u.role][0][0]}"><img src="/img/emblem.png" alt="" width="34" height="34"><span>${esc(state.settings?.school_name || 'Eagle Labs Exam Portal')}</span></a>
     <nav aria-label="Main">${NAV[u.role].map(([h, l]) => `<a href="${h}" ${here === h || (h.length > 4 && here.startsWith(h)) ? 'aria-current="page"' : ''}>${l}</a>`).join('')}</nav>
-    <div class="who"><span>${esc(u.name)}</span><button class="sec sm" id="lo">Sign out</button></div></header><main id="main" class="${narrow ? 'narrow' : ''}">${inner}</main>`, { title });
+    <div class="who"><span>${esc(u.name)}</span><button class="sec sm" id="lo">Sign out</button></div></header><main id="main" class="${narrow ? 'narrow' : ''}">${inner}</main>`, { title, hold });
   $('#lo').insertAdjacentHTML('beforebegin', '<span class="tsz" role="group" aria-label="Text size"><button type="button" id="tsm" aria-label="Smaller text">A−</button><button type="button" id="tsp" aria-label="Larger text">A+</button></span>');
   $('#tsm').onclick = () => bumpSize(-1); $('#tsp').onclick = () => bumpSize(1);
   $('#lo').onclick = async () => { await post('/api/auth/logout').catch(() => {}); state.user = null; location.hash = '#/'; };
 }
-const loading = () => render('<main id="main"><p><span class="spin"></span> Loading…</p></main>');
-const errorPage = (e, retry) => { const m = `<div class="alert err" role="alert">${esc(e.message)}</div><button class="sec" id="rt">Try again</button>`; if (state.user) page(`<h1>Something went wrong</h1>${m}`); else render(`<main id="main"><h1>Something went wrong</h1>${m}</main>`); $('#rt').onclick = retry; };
+// loading('dash') = first dashboard after signing in, loading('exam') = opening an exam: both get the full eagle screen (it ends in render()).
+// loading() = ordinary page: a light skeleton only. The eagle never appears over an exam that is already on screen (EagleLoader.begin refuses).
+function loading(kind) {
+  if (window.EagleLoader) {
+    const uid = state.user ? state.user.id : null, slow = () => errorPage(new Error('Loading took longer than expected. Check your connection and try again.'), route);
+    if (kind === 'exam') EagleLoader.begin('exam', route, slow);
+    else if (kind === 'dash' && (EagleLoader.isOn() || state.dashSeen !== uid)) { state.dashSeen = uid; EagleLoader.begin('dash', route, slow); }
+  }
+  render('<main id="main" aria-busy="true"><div class="sk" role="status"><span class="vh">Loading…</span><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i></div></main>', { hold: true });
+}
+const errorPage = (e, retry) => {
+  if (window.EagleLoader && EagleLoader.isOn()) return EagleLoader.fail(e.message || 'Something went wrong while loading.', retry, () => showError(e, retry), 'Show details');
+  showError(e, retry);
+};
+const showError = (e, retry) => { const m = `<div class="alert err" role="alert">${esc(e.message)}</div><button class="sec" id="rt">Try again</button>`; if (state.user) page(`<h1>Something went wrong</h1>${m}`); else render(`<main id="main"><h1>Something went wrong</h1>${m}</main>`); $('#rt').onclick = retry; };
 
 const routes = []; const R = (re, fn, roles) => routes.push([re, fn, roles]);
 async function route() {
@@ -117,7 +132,15 @@ function applyBrand() {
   const lin = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }, n = parseInt(m[1], 16), L = .2126 * lin(n >> 16) + .7152 * lin((n >> 8) & 255) + .0722 * lin(n & 255);
   if (1.05 / (L + .05) >= 4.5) document.documentElement.style.setProperty('--navy', c);
 }
-async function boot() { try { state.user = await meUser(); } catch { state.user = false; } route(); }
+async function boot() {
+  try { state.user = await meUser(); }
+  catch (e) {
+    // Cannot reach the server (or it is failing): say so. Quietly treating this as "signed out" would show a normal-looking sign-in page that cannot work.
+    if (window.EagleLoader && (e.network || e.status >= 500)) return EagleLoader.fail(e.message || 'The server is not responding.', () => { state.user = null; boot(); }, () => { state.user = false; route(); }, 'Open sign-in page');
+    state.user = false;
+  }
+  route();
+}
 const homeFor = u => u.role === 'teacher' ? '#/t' : u.role === 'admin' ? '#/a/users' : '#/s';
 
 /* ---- welcome + auth ---- */
