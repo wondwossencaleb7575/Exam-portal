@@ -53,10 +53,12 @@ R(/^\/verify$/, async () => {
     e.preventDefault(); if (busy || done || digits().length !== 6) return; // the guard that stops double submits
     busy = true; go.textContent = 'Verifying…'; go.setAttribute('aria-busy', 'true'); show('', ''); paint();
     try {
+      EagleLoader.begin({ context: 'auth', delay: 250 });
       const r = await post('/api/auth/otp/verify', { code: digits() });
       done = true; state.user = r.user; show('ok', 'Verified. Signing you in…'); announce('Verified. Signing you in.');
       location.hash = r.user.must_change ? '#/password' : homeFor(r.user);
     } catch (x) {
+      EagleLoader.cancel();
       busy = false; go.textContent = 'Verify'; go.removeAttribute('aria-busy');
       const c = x.data?.code;
       if (c === 'otp_session_missing') return lost(x);

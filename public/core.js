@@ -1,7 +1,9 @@
 /* Eagle Labs Exam Portal: core client (helpers, router, auth, welcome) */
+// The eagle loading screen (eagle-loader.js) is optional to this file: if a browser still holds an older index.html (static files are cached for 5 minutes after a deploy) these no-ops keep the app working.
+const EagleLoader = window.EagleLoader || { begin() {}, end() {}, cancel() {}, fail() {}, message() {}, isActive: () => false, isFailed: () => false };
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const state = { user: null, settings: null };
+const state = { user: null, settings: null, dashSeen: {}, bootFailed: false };
 // Text size (display preference only, kept in this browser). Steps in px; html font-size follows --fs so every rem-based size scales together.
 const SIZES = [14, 16, 18, 20, 22];
 const setSize = px => document.documentElement.style.setProperty('--fs', px + 'px');
@@ -19,7 +21,7 @@ const num = x => x == null ? '–' : (Math.round(x * 100) / 100);
 
 async function api(url, { method, body } = {}) {
   let r;
-  try { r = await fetch(url, { method: method || (body ? 'POST' : 'GET'), headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'eagle' }, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' }); }
+  try { r = await fetch(url, { method: method || (body ? 'POST' : 'GET'), headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'eagle' }, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', cache: 'no-store' }); } // no-store: the server already forbids caching API responses; this also stops a retry queuing behind an earlier request for the same URL that is still hung
   catch { throw Object.assign(new Error('Cannot reach the server. Check your internet connection.'), { network: true }); }
   const ct = r.headers.get('content-type') || '', j = ct.includes('json') ? await r.json().catch(() => ({})) : {};
   if (!r.ok) {
@@ -77,41 +79,36 @@ const debounce = (f, ms) => { let t; return (...a) => { clearTimeout(t); t = set
 
 /* ---- layout + router ---- */
 let cleanup = null; // set by views that own timers/listeners
-function render(html, { title = 'Eagle Labs Exam Portal', home = false, hold = false } = {}) {
+function render(html, { title = 'Eagle Labs Exam Portal', home = false, keepLoader = false } = {}) {
   if (cleanup) { cleanup(); cleanup = null; }
-  if (!state.user) state.dashSeen = null; // signed out: the next sign-in gets the full welcome screen again
   document.body.classList.toggle('home', home); document.title = title + ' · ' + (state.settings?.school_name || 'Eagle Labs'); $('#root').innerHTML = html; math($('#root')); scrollTo(0, 0);
   const h = $('#main h1'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
-  if (!hold && window.EagleLoader) EagleLoader.done(); // the requested page is on screen: reveal it
+  if (!keepLoader) EagleLoader.end(); // the page is really rendered: let the eagle screen fade out over it (loading() and views that still await data pass keepLoader)
 }
 const NAV = { teacher: [['#/t', 'Dashboard'], ['#/t/exams', 'Exams'], ['#/t/bank', 'Question bank'], ['#/t/classes', 'Classes'], ['#/t/students', 'Students'], ['#/t/analytics', 'Analytics']], admin: [['#/a/users', 'Users'], ['#/a/students', 'Students'], ['#/a/classes', 'Classes'], ['#/a/audit', 'Audit log'], ['#/a/settings', 'Settings'], ['#/a/system', 'System']], student: [['#/s', 'My exams']] };
-function page(inner, { title, narrow = false, hold = false } = {}) {
+function page(inner, { title, narrow = false, keepLoader = false } = {}) {
   const u = state.user, here = location.hash;
   render(`<header class="top"><a class="brand" href="${NAV[u.role][0][0]}"><img src="/img/emblem.png" alt="" width="34" height="34"><span>${esc(state.settings?.school_name || 'Eagle Labs Exam Portal')}</span></a>
     <nav aria-label="Main">${NAV[u.role].map(([h, l]) => `<a href="${h}" ${here === h || (h.length > 4 && here.startsWith(h)) ? 'aria-current="page"' : ''}>${l}</a>`).join('')}</nav>
-    <div class="who"><span>${esc(u.name)}</span><button class="sec sm" id="lo">Sign out</button></div></header><main id="main" class="${narrow ? 'narrow' : ''}">${inner}</main>`, { title, hold });
+    <div class="who"><span>${esc(u.name)}</span><button class="sec sm" id="lo">Sign out</button></div></header><main id="main" class="${narrow ? 'narrow' : ''}">${inner}</main>`, { title, keepLoader });
   $('#lo').insertAdjacentHTML('beforebegin', '<span class="tsz" role="group" aria-label="Text size"><button type="button" id="tsm" aria-label="Smaller text">A−</button><button type="button" id="tsp" aria-label="Larger text">A+</button></span>');
   $('#tsm').onclick = () => bumpSize(-1); $('#tsp').onclick = () => bumpSize(1);
-  $('#lo').onclick = async () => { await post('/api/auth/logout').catch(() => {}); state.user = null; location.hash = '#/'; };
+  $('#lo').onclick = async () => { await post('/api/auth/logout').catch(() => {}); state.user = null; state.dashSeen = {}; location.hash = '#/'; };
 }
-// loading('dash') = first dashboard after signing in, loading('exam') = opening an exam: both get the full eagle screen (it ends in render()).
-// loading() = ordinary page: a light skeleton only. The eagle never appears over an exam that is already on screen (EagleLoader.begin refuses).
-function loading(kind) {
-  if (window.EagleLoader) {
-    const uid = state.user ? state.user.id : null, slow = () => errorPage(new Error('Loading took longer than expected. Check your connection and try again.'), route);
-    if (kind === 'exam') EagleLoader.begin('exam', route, slow);
-    else if (kind === 'dash' && (EagleLoader.isOn() || state.dashSeen !== uid)) { state.dashSeen = uid; EagleLoader.begin('dash', route, slow); }
-  }
-  render('<main id="main" aria-busy="true"><div class="sk" role="status"><span class="vh">Loading…</span><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i></div></main>', { hold: true });
+// Which views get the full eagle screen: a user's FIRST dashboard load of the session, and opening/resuming an exam. Every other load keeps the small spinner.
+const FULL_LOAD = [[/^#\/s$/, 'dashboard'], [/^#\/t$/, 'dashboard'], [/^#\/a(\/users)?$/, 'dashboard'], [/^#\/s\/attempt\/\d+$/, 'exam']];
+function loading() {
+  const hit = FULL_LOAD.find(([re]) => re.test(location.hash)), kind = hit && hit[1], role = state.user && state.user.role;
+  if (kind === 'exam') EagleLoader.begin({ context: 'exam', delay: 150, retry: route });
+  else if (kind === 'dashboard' && role && !state.dashSeen[role]) { state.dashSeen[role] = true; EagleLoader.begin({ context: 'dashboard', delay: 150, retry: route }); }
+  else if (EagleLoader.isActive()) EagleLoader.begin({ context: kind || undefined, retry: route }); // start-up / sign-in screen is already up: keep it, relabel it
+  render('<main id="main"><p><span class="spin"></span> Loading…</p></main>', { keepLoader: true });
 }
-const errorPage = (e, retry) => {
-  if (window.EagleLoader && EagleLoader.isOn()) return EagleLoader.fail(e.message || 'Something went wrong while loading.', retry, () => showError(e, retry), 'Show details');
-  showError(e, retry);
-};
-const showError = (e, retry) => { const m = `<div class="alert err" role="alert">${esc(e.message)}</div><button class="sec" id="rt">Try again</button>`; if (state.user) page(`<h1>Something went wrong</h1>${m}`); else render(`<main id="main"><h1>Something went wrong</h1>${m}</main>`); $('#rt').onclick = retry; };
+const errorPage = (e, retry) => { if (EagleLoader.isActive()) return EagleLoader.fail({ message: e.message, retry }); const m = `<div class="alert err" role="alert">${esc(e.message)}</div><button class="sec" id="rt">Try again</button>`; if (state.user) page(`<h1>Something went wrong</h1>${m}`); else render(`<main id="main"><h1>Something went wrong</h1>${m}</main>`); $('#rt').onclick = retry; };
 
 const routes = []; const R = (re, fn, roles) => routes.push([re, fn, roles]);
 async function route() {
+  if (state.bootFailed) return; // start-up failed and the screen is offering Try again; do not paper over it by routing as signed-out
   const hash = location.hash.replace(/^#/, '') || '/';
   if (state.user === null && !['/', '/login'].includes(hash)) { try { state.user = await meUser(); } catch { state.user = false; } }
   if (state.user === null) { try { state.user = await meUser(); } catch { state.user = false; } }
@@ -132,14 +129,21 @@ function applyBrand() {
   const lin = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }, n = parseInt(m[1], 16), L = .2126 * lin(n >> 16) + .7152 * lin((n >> 8) & 255) + .0722 * lin(n & 255);
   if (1.05 / (L + .05) >= 4.5) document.documentElement.style.setProperty('--navy', c);
 }
+// Before the first render the page needs the deferred KaTeX scripts (they run before DOMContentLoaded) and KaTeX's stylesheet (loaded non-blocking as media=print, see index.html).
+const domReady = () => document.readyState === 'loading' ? new Promise(r => addEventListener('DOMContentLoaded', r, { once: true })) : Promise.resolve();
+const katexCss = () => new Promise(r => {
+  const l = document.getElementById('katex-css'); if (!l || l.media === 'all') return r();
+  const go = () => { l.media = 'all'; r(); };
+  if (l.sheet) return go();                                   // already downloaded
+  l.addEventListener('load', go, { once: true }); l.addEventListener('error', r, { once: true }); setTimeout(go, 6000); // never hold the app back for longer than 6 s
+});
 async function boot() {
+  state.bootFailed = false; const dom = Promise.all([domReady(), katexCss()]);
+  EagleLoader.begin({ context: 'startup', delay: 0, retry: boot });
+  // Signed-out is a normal answer from /me (user: null), so a thrown error here is a genuine failure (offline, server or database down).
   try { state.user = await meUser(); }
-  catch (e) {
-    // Cannot reach the server (or it is failing): say so. Quietly treating this as "signed out" would show a normal-looking sign-in page that cannot work.
-    if (window.EagleLoader && (e.network || e.status >= 500)) return EagleLoader.fail(e.message || 'The server is not responding.', () => { state.user = null; boot(); }, () => { state.user = false; route(); }, 'Open sign-in page');
-    state.user = false;
-  }
-  route();
+  catch (e) { state.bootFailed = true; return EagleLoader.fail({ title: 'We could not reach Eagle Labs Exam Portal', message: e.message || 'Check your internet connection and try again.', retry: boot }); }
+  await dom; route();
 }
 const homeFor = u => u.role === 'teacher' ? '#/t' : u.role === 'admin' ? '#/a/users' : '#/s';
 
@@ -169,10 +173,11 @@ R(/^\/login$/, async () => {
     <div class="row l" style="margin-top:14px"><button type="submit" class="sec">Email me a code</button></div></form>` : ''}</main>`, { title: 'Sign in' });
   state.notice = null;
   $('#f').onsubmit = async e => { e.preventDefault(); const b = $('button', e.target); b.disabled = true; $('#er').hidden = true;
+    EagleLoader.begin({ context: 'auth', delay: 250 });
     try { const r = await post('/api/auth/login', { email: $('#em').value, password: $('#pw').value });
       if (r.otp_required) { state.user = false; state.viaCode = false; location.hash = '#/verify'; return; } // password accepted, but NOT signed in yet: a code was emailed
       state.user = r.user; location.hash = r.user.must_change ? '#/password' : homeFor(r.user); }
-    catch (x) { $('#er').hidden = false; $('#er').textContent = x.message; b.disabled = false; } };
+    catch (x) { EagleLoader.cancel(); $('#er').hidden = false; $('#er').textContent = x.message; b.disabled = false; } };
   if ($('#cf')) $('#cf').onsubmit = async e => { e.preventDefault(); const b = $('button', e.target), er = $('#ce-er'); if (b.disabled) return; b.disabled = true; er.hidden = true;
     try { await post('/api/auth/code/request', { email: $('#ce').value }); state.user = false; state.viaCode = true; location.hash = '#/verify'; }  // the answer is the same for every address, so this never says whether an account exists
     catch (x) { er.hidden = false; er.textContent = x.message; b.disabled = false; } };

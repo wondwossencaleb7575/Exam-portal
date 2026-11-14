@@ -1,0 +1,135 @@
+/* Eagle Labs Exam Portal: animated eagle loading screen.
+   Loaded from <head> so it styles the splash that is part of index.html's first paint.
+
+   Design rules:
+   - Every VISIBLE state is the default. Motion is layered on top under .is-ready, so the screen is complete and
+     readable with animations off (style.css disables all animation under prefers-reduced-motion).
+   - Only transform and opacity are animated (compositor-only): no layout, no paint, no filter animation.
+   - The eagle is the supplied logo, cut into rigid layers that are only rotated/translated, never redrawn or warped. */
+
+.eagle-splash {
+  --es-bg0: #14267a; --es-bg1: #0b1654; --es-bg2: #070d33; --es-bg3: #040720;
+  --es-blue: #5aa2ff; --es-ice: #b8cdf5;
+  --es-flap: 2.4s;                                   /* one full wing beat (calm, eagle-like) */
+  --es-sine: cubic-bezier(.37, 0, .63, 1);           /* sine in-out: no jerk at the top or bottom of a stroke */
+  position: fixed; inset: 0; z-index: 2000; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+  display: flex;                                     /* .es-center uses margin:auto, so tall content (error panel on a short phone) scrolls instead of being clipped */
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: radial-gradient(ellipse 120% 90% at 50% 40%, var(--es-bg0) 0%, var(--es-bg1) 34%, var(--es-bg2) 68%, var(--es-bg3) 100%);
+  color: #fff; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+.eagle-splash[hidden] { display: none !important; }
+@media print { .eagle-splash { display: none !important; } }
+
+/* ---- depth: a few faint speed streaks drift past (the world moves left because the eagle flies right) ---- */
+.es-sky { position: absolute; inset: 0; pointer-events: none; }
+.es-streak {
+  position: absolute; left: 0; height: 2px; width: var(--w, 26vw); border-radius: 2px; opacity: 0; will-change: transform, opacity;
+  background: linear-gradient(90deg, transparent, rgba(140, 185, 255, .75), transparent);
+  animation: esStreak var(--d, 3.6s) linear var(--dl, 0s) infinite;
+}
+.es-streak.s1 { top: 27%; --w: 22vw; --d: 4.6s; --dl: -.4s; --o: .16; }
+.es-streak.s2 { top: 39%; --w: 34vw; --d: 3.1s; --dl: -1.7s; --o: .26; height: 3px; }
+.es-streak.s3 { top: 49%; --w: 18vw; --d: 5.2s; --dl: -3.2s; --o: .13; }
+.es-streak.s4 { top: 61%; --w: 30vw; --d: 3.4s; --dl: -.9s; --o: .22; height: 3px; }
+.es-streak.s5 { top: 71%; --w: 20vw; --d: 4.9s; --dl: -2.6s; --o: .14; }
+.es-streak.s6 { top: 80%; --w: 26vw; --d: 3.8s; --dl: -1.1s; --o: .18; }
+@keyframes esStreak {
+  0%   { transform: translate3d(112vw, 0, 0); opacity: 0; }
+  12%  { opacity: var(--o, .2); }
+  88%  { opacity: var(--o, .2); }
+  100% { transform: translate3d(-45vw, 0, 0); opacity: 0; }
+}
+
+/* ---- layout ---- */
+.es-center { position: relative; margin: auto; display: flex; flex-direction: column; align-items: center; text-align: center; width: 100%; max-width: 520px; }
+.es-exit { transition: transform .6s cubic-bezier(.5, 0, .9, .4); }
+.eagle-splash.is-leaving .es-exit { transform: translate3d(5%, -3%, 0) scale(1.06); }   /* the eagle surges away as the screen clears */
+
+/* ---- the eagle (frame has the logo's own proportions: 739 x 874) ---- */
+.es-eagle { position: relative; width: clamp(176px, 43vmin, 360px); aspect-ratio: 739 / 874; opacity: 0; margin-bottom: clamp(14px, 3.4vmin, 30px); }
+.is-ready .es-eagle { opacity: 1; animation: esApproach 1.3s cubic-bezier(.16, .84, .3, 1) both; }
+.es-glide { position: absolute; inset: 0; transform-origin: 50% 55%; }
+.is-ready .es-glide { animation: esGlide 4.8s var(--es-sine) 1.3s infinite; }
+.es-halo { position: absolute; inset: -26% -22%; opacity: .78; background: radial-gradient(closest-side, rgba(70, 140, 255, .34), rgba(70, 140, 255, .1) 58%, transparent 78%); }
+.is-ready .es-halo { animation: esHalo var(--es-flap) var(--es-sine) 1.7s infinite; }
+
+.es-lyr { position: absolute; will-change: transform; }
+.es-lyr img { display: block; width: 100%; height: 100%; user-select: none; -webkit-user-drag: none; }
+/* Position and hinge of each layer, measured on the supplied artwork (percent of the 739x874 frame; origin = shoulder joint). */
+.es-gw   { left: -7.713%; top: -5.606%;  width: 91.069%; height: 111.213%; transform-origin: 83.51% 51.85%;  opacity: .62; }
+.es-gb   { left: 55.345%; top: 23.684%;  width: 52.097%; height: 51.259%;  transform-origin: 24.94% 55.36%;  opacity: .62; }
+.es-tip  { left: 4.195%;  top: 12.471%;  width: 43.437%; height: 54.005%;  transform-origin: 147.66% 73.31%; }
+.es-wing { left: 0;       top: 0;        width: 78.755%; height: 100%;     transform-origin: 86.77% 52.06%;  }
+.es-body { left: 63.329%; top: 30.206%;  width: 36.671%; height: 39.588%;  transform-origin: 13.65% 55.2%;   }
+
+/* Wing beat: the wing assembly and its glow rotate together about the shoulder; the trailing feather tips follow ~70 ms
+   later, so the feathers visibly ripple. The body rises on the down-stroke. Intro settles the wing from the logo's own pose. */
+.is-ready .es-wing, .is-ready .es-gw { animation: esWingIn .8s var(--es-sine) .9s both, esWing var(--es-flap) var(--es-sine) 1.7s infinite; }
+.is-ready .es-tip { animation: esWingIn .8s var(--es-sine) .97s both, esWing var(--es-flap) var(--es-sine) 1.77s infinite; }
+.is-ready .es-body, .is-ready .es-gb { animation: esBodyIn .8s var(--es-sine) .9s both, esBody var(--es-flap) var(--es-sine) 1.7s infinite; }
+
+@keyframes esApproach { from { opacity: 0; transform: translate3d(-8%, 3%, 0) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes esGlide    { 0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); } 50% { transform: translate3d(0, -1.6%, 0) rotate(-.7deg); } }
+@keyframes esHalo     { 0%, 100% { opacity: .58; } 45% { opacity: .92; } }
+@keyframes esWingIn   { from { transform: rotate(0deg); } to { transform: rotate(-4deg); } }
+@keyframes esWing     { 0%, 100% { transform: rotate(-4deg); } 45% { transform: rotate(6deg); } }
+@keyframes esBodyIn   { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, -2.5%, 0); } }
+@keyframes esBody     { 0%, 100% { transform: translate3d(0, -2.5%, 0); } 45% { transform: translate3d(0, 2.5%, 0); } }
+
+/* If the artwork cannot load, fall back to the portal's existing emblem rather than showing a hole. */
+.es-fallback { display: none; position: absolute; left: 50%; top: 50%; width: 62%; height: auto; transform: translate(-50%, -50%); }
+.no-art .es-lyr, .no-art .es-halo { display: none; }
+.no-art .es-fallback { display: block; }
+.no-art .es-eagle { opacity: 1; }
+
+/* ---- brand, indicator, message ---- */
+.es-name { font-weight: 800; font-size: clamp(1.4rem, 4.8vmin, 2.1rem); line-height: 1; letter-spacing: .34em; margin-right: -.34em; text-shadow: 0 0 22px rgba(80, 150, 255, .5); animation: esUp .8s cubic-bezier(.2, .7, .2, 1) .55s both; }
+.es-sub  { font-weight: 600; font-size: clamp(.72rem, 2.3vmin, .95rem); line-height: 1; letter-spacing: .52em; margin: .85em -.52em 0 0; color: #82b3ff; animation: esUp .8s cubic-bezier(.2, .7, .2, 1) .7s both; }
+.es-track { position: relative; width: min(220px, 58vw); height: 3px; margin-top: clamp(18px, 4vmin, 30px); border-radius: 3px; overflow: hidden; background: rgba(120, 160, 255, .2); animation: esFade .6s ease .95s both; }
+.es-track i { position: absolute; left: 0; top: 0; height: 100%; width: 42%; border-radius: 3px; background: linear-gradient(90deg, transparent, var(--es-blue), #a9cdff, transparent); will-change: transform; animation: esBar 1.7s cubic-bezier(.45, 0, .25, 1) infinite; }
+.es-msg  { min-height: 1.5em; margin: 1.05rem 0 0; font-size: clamp(.88rem, 2.4vmin, 1rem); letter-spacing: .02em; color: var(--es-ice); transition: opacity .16s ease; animation: esFade .6s ease 1.05s both; }
+.es-msg.is-swap { opacity: 0; }
+@keyframes esUp  { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
+@keyframes esFade{ from { opacity: 0; } to { opacity: 1; } }
+@keyframes esBar { 0% { transform: translate3d(-110%, 0, 0); } 100% { transform: translate3d(265%, 0, 0); } }
+
+/* ---- error / time-out state: the screen says so, instead of pretending to have finished ---- */
+.es-err { margin-top: clamp(14px, 3vmin, 24px); max-width: min(440px, 90vw); }
+.es-err[hidden] { display: none; }
+.es-errtitle { margin: 0; font-size: 1.1rem; font-weight: 700; }
+.es-errmsg, .es-note { margin: .55rem 0 0; color: var(--es-ice); font-size: .95rem; line-height: 1.5; }
+.es-note { font-size: .85rem; opacity: .85; }
+.es-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 1.1rem; }
+.es-btn { appearance: none; min-height: 44px; padding: 0 22px; border-radius: 999px; border: 1px solid transparent; background: #2f6bff; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.es-btn:hover { background: #4a80ff; }
+.es-btn.es-ghost { background: transparent; border-color: rgba(184, 205, 245, .5); color: var(--es-ice); }
+.es-btn.es-ghost:hover { background: rgba(184, 205, 245, .12); }
+.es-btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.is-error .es-track, .is-error .es-msg, .is-error .es-streak { display: none; }
+.is-error .es-glide, .is-error .es-wing, .is-error .es-tip, .is-error .es-body, .is-error .es-gw, .is-error .es-gb, .is-error .es-halo { animation-play-state: paused; }
+.is-error .es-glide { opacity: .7; }
+
+/* ---- show / hide ---- */
+.eagle-splash.is-entering { animation: esFade .25s ease-out both; }
+.eagle-splash.is-leaving { opacity: 0; transition: opacity .45s cubic-bezier(.4, 0, .2, 1); pointer-events: none; }
+.eagle-splash.is-leaving.is-quick { transition-duration: .2s; }
+.eagle-splash.is-paused *, .eagle-splash.is-paused { animation-play-state: paused !important; }   /* hidden tab: spend nothing */
+
+/* ---- short screens (phone in landscape): a smaller eagle so the brand, indicator and message all fit without scrolling ---- */
+@media (max-height: 520px) { .es-eagle { width: clamp(110px, 30vmin, 200px); margin-bottom: 8px; } .es-track { margin-top: 12px; } .es-msg { margin-top: .6rem; } }
+
+/* ---- if scripts never run, say so after 20 s (pure CSS: the loader's own script is not needed for this) ---- */
+.es-failsafe { position: absolute; left: 0; right: 0; bottom: max(24px, env(safe-area-inset-bottom)); margin: 0; text-align: center; color: var(--es-ice); font-size: .95rem; visibility: hidden; opacity: 0; }
+.es-failsafe a { color: #fff; font-weight: 600; }
+.eagle-splash:not(.js-on) .es-failsafe { animation: esFail 0s linear 20s forwards; }
+@keyframes esFail { to { visibility: visible; opacity: 1; } }
+
+/* ---- reduced motion: a calm, still screen. (style.css already zeroes animations globally; this makes the static result deliberate.) ---- */
+@media (prefers-reduced-motion: reduce) {
+  .es-streak { display: none; }
+  .es-track i { width: 100%; opacity: .55; }
+  .es-gw, .es-gb { opacity: .5; }
+  .eagle-splash:not(.js-on) .es-failsafe { animation: esFail 0s linear 20s forwards !important; }   /* a visibility switch, not motion */
+}

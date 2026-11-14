@@ -3,26 +3,41 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eagle Labs Exam Portal</title>
 <link rel="icon" href="/img/emblem.png">
-<link rel="stylesheet" href="/katex/katex.min.css"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/loader.css">
-<link rel="preload" as="image" href="/img/eagle/eagle-body.webp" type="image/webp"><link rel="preload" as="image" href="/img/eagle/eagle-wingA.webp" type="image/webp"><link rel="preload" as="image" href="/img/eagle/eagle-wingB.webp" type="image/webp">
-<noscript><style>#eagle-loader{display:none}</style></noscript>
-<script src="/katex/katex.min.js"></script><script src="/katex/contrib/auto-render.min.js"></script>
+<link rel="stylesheet" href="/eagle-loader.css"><link rel="stylesheet" href="/style.css">
+<!-- KaTeX must not block the first paint (the loading screen has to appear at once, even on a slow link), so its script is deferred and its stylesheet loads as media="print" (non-blocking).
+     core.js boot() switches it to "all" and waits for it, and for DOMContentLoaded, BEFORE the first page render, so maths still renders, fully styled. -->
+<link rel="stylesheet" href="/katex/katex.min.css" media="print" id="katex-css">
+<script defer src="/katex/katex.min.js"></script><script defer src="/katex/contrib/auto-render.min.js"></script>
 </head><body>
+<!-- Loading screen: part of the first paint, driven by eagle-loader.js. Layers are the supplied Eagle Labs logo, cut apart so the wing can move. -->
+<div id="eagle-splash" class="eagle-splash" role="status" aria-live="polite" aria-busy="true">
+  <div class="es-sky" aria-hidden="true"><i class="es-streak s1"></i><i class="es-streak s2"></i><i class="es-streak s3"></i><i class="es-streak s4"></i><i class="es-streak s5"></i><i class="es-streak s6"></i></div>
+  <div class="es-center">
+    <div class="es-exit"><div class="es-eagle" aria-hidden="true"><div class="es-glide">
+      <div class="es-halo"></div>
+      <div class="es-lyr es-gw"><img src="/img/eagle/glow-wing.webp" alt="" width="202" height="292" decoding="async"></div>
+      <div class="es-lyr es-gb"><img src="/img/eagle/glow-body.webp" alt="" width="116" height="134" decoding="async"></div>
+      <div class="es-lyr es-tip"><img src="/img/eagle/tip.webp" alt="" width="257" height="378" decoding="async" fetchpriority="high"></div>
+      <div class="es-lyr es-wing"><img src="/img/eagle/wing.webp" alt="" width="466" height="699" decoding="async" fetchpriority="high"></div>
+      <div class="es-lyr es-body"><img src="/img/eagle/body.webp" alt="" width="217" height="277" decoding="async" fetchpriority="high"></div>
+      <img class="es-fallback" src="/img/emblem.png" alt="" width="256" height="256">
+    </div></div></div>
+    <div class="es-name">EAGLE LABS</div>
+    <div class="es-sub">EXAM PORTAL</div>
+    <div class="es-track" aria-hidden="true"><i></i></div>
+    <p class="es-msg">Preparing your examination environment...</p>
+    <div class="es-err" hidden>
+      <p class="es-errtitle"></p>
+      <p class="es-errmsg" role="alert"></p>
+      <p class="es-note" hidden></p>
+      <div class="es-actions"><button type="button" class="es-btn es-retry">Try again</button><button type="button" class="es-btn es-ghost es-reload">Reload page</button></div>
+    </div>
+  </div>
+  <p class="es-failsafe">The portal is taking too long to start. <a href="/">Reload</a></p>
+</div>
+<noscript><style>#eagle-splash{display:none}</style><p style="padding:24px;font-family:system-ui,sans-serif">Eagle Labs Exam Portal needs JavaScript. Please turn it on in your browser and reload this page.</p></noscript>
 <a class="skip" href="#main">Skip to content</a>
 <div id="root"></div><div id="toasts" role="status" aria-live="polite"></div><div id="live" class="vh" role="status" aria-live="assertive"></div>
-<div id="eagle-loader" class="el" role="status" aria-live="polite" aria-busy="true" data-state="loading">
-<div class="el-sky" aria-hidden="true"><i></i><i></i><i></i></div>
-<div class="el-stage" aria-hidden="true"><div class="el-glow"></div><div class="el-flight"><div class="el-eagle">
-<img class="el-wb" src="/img/eagle/eagle-wingB.webp" alt="" width="467" height="556" decoding="async" fetchpriority="high">
-<img class="el-bd" src="/img/eagle/eagle-body.webp" alt="" width="467" height="556" decoding="async" fetchpriority="high">
-<img class="el-wa" src="/img/eagle/eagle-wingA.webp" alt="" width="467" height="556" decoding="async" fetchpriority="high">
-</div></div><div class="el-shadow"></div></div>
-<p class="el-brand"><span class="el-name">EAGLE LABS</span><span class="el-prod">EXAM PORTAL</span></p>
-<div class="el-track" aria-hidden="true"><i></i></div>
-<p class="el-msg">Preparing your examination environment...</p>
-<div class="el-err"><p class="el-etxt" role="alert"></p><div class="el-btns"><button type="button" class="el-btn p el-retry">Try again</button><button type="button" class="el-btn el-dismiss" hidden>Close</button></div></div>
-</div>
-<script src="/loader.js"></script>
 <div class="ft">Made by Eagle Labs and Tch. Getamesay</div>
-<script src="/tz.js"></script><script src="/core.js"></script><script src="/otp.js"></script><script src="/student.js"></script><script src="/teacher.js"></script><script src="/students.js"></script><script src="/questionImport.js"></script><script src="/analytics.js"></script><script src="/admin.js"></script>
+<script src="/tz.js"></script><script src="/eagle-loader.js"></script><script src="/core.js"></script><script src="/otp.js"></script><script src="/student.js"></script><script src="/teacher.js"></script><script src="/students.js"></script><script src="/questionImport.js"></script><script src="/analytics.js"></script><script src="/admin.js"></script>
 </body></html>

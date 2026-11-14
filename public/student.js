@@ -8,7 +8,7 @@ const dropPending = id => { try { localStorage.removeItem(PEND + id); localStora
 const phaseLabel = { scheduled: 'Not open yet', active: 'Open', closed: 'Closed' };
 
 R(/^\/s$/, async () => {
-  loading('dash'); const d = await get('/api/student/exams');
+  loading(); const d = await get('/api/student/exams');
   const card = e => {
     let act = '';
     if (e.in_progress_attempt) act = `<a class="btn" href="#/s/attempt/${e.in_progress_attempt}">Resume exam</a>`;
@@ -35,11 +35,11 @@ R(/^\/s\/exam\/(\d+)$/, async id => {
     <li>If you lose your connection, keep the page open. Answers are kept on this device and sent when you reconnect. If a technical problem prevents you finishing, tell your teacher right away; they can review and extend time.</li>
     <li><b>Monitoring notice:</b> the portal records only when this browser tab is hidden or goes offline during the exam. Your teacher sees these as context, never as proof of misconduct. No camera, microphone or screen recording is used.</li></ul>
     <div class="row l"><button id="go" ${e.phase !== 'active' || e.attempts_used >= e.max_attempts ? 'disabled' : ''}>Start exam</button><a href="#/s">← Back</a></div><div class="alert err" id="er" role="alert" hidden></div></div>`, { title: e.title, narrow: true });
-  $('#go').onclick = async ev => { ev.target.disabled = true; if (window.EagleLoader) EagleLoader.begin('exam', null); try { const d = await post(`/api/student/exams/${id}/start`); location.hash = '#/s/attempt/' + d.attempt.id; } catch (x) { if (window.EagleLoader) EagleLoader.cancel(); $('#er').hidden = false; $('#er').textContent = x.message; ev.target.disabled = false; } };
+  $('#go').onclick = async ev => { ev.target.disabled = true; EagleLoader.begin({ context: 'exam', delay: 250 }); try { const d = await post(`/api/student/exams/${id}/start`); location.hash = '#/s/attempt/' + d.attempt.id; } catch (x) { EagleLoader.cancel(); $('#er').hidden = false; $('#er').textContent = x.message; ev.target.disabled = false; } };
 }, S_);
 
 R(/^\/s\/attempt\/(\d+)$/, async id => {
-  loading('exam'); let d;
+  loading(); let d;
   try { d = await get('/api/student/attempts/' + id); } catch (e) { if (e.data?.finalized) { dropPending(id); toast(e.message); return (location.hash = '#/s/result/' + id); } throw e; }
   player(id, d);
 }, S_);
